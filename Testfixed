@@ -1,0 +1,127 @@
+-- ================================
+-- Scripts Hub X | Fixed (Delta)
+-- ================================
+
+-- Services
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+
+-- ================================
+-- CONFIG & CONSTANTS
+-- ================================
+local OwnerUserId = "2341777244"
+local KeySystem = true
+local STEAL_A_FREDDY_PLACE_ID = 137167142636546
+local webhookUrl = "https://discord.com/api/webhooks/1396650841045209169/Mx_0dcjOVnzp5f5zMhYM2uOBCPGt9SPr908shfLh_FGKZJ5eFc4tMsiiNNp1CGDx_M21"
+local keyFileName = "Scripts Hub X OFFICIAL - Key.txt"
+
+-- ================================
+-- SAFE REQUEST WRAPPER
+-- ================================
+local function SafeRequest(options)
+    if request then
+        return request(options)
+    elseif http_request then
+        return http_request(options)
+    elseif syn and syn.request then
+        return syn.request(options)
+    else
+        warn("⚠️ No request function found in this executor")
+        return nil
+    end
+end
+
+-- ================================
+-- KEY SYSTEM LOADER (FIXED)
+-- ================================
+local function loadKeySystem()
+    print("🔑 loadKeySystem() called")
+
+    -- Cuba baca dari file jika executor support
+    if isfile and readfile and isfile("keysystem.lua") then
+        local keySystemScript = readfile("keysystem.lua")
+        local fn = loadstring(keySystemScript)
+        if fn then
+            local result = fn()
+            if type(result) == "table" then
+                print("✅ KeySystem loaded from file")
+                return true, result
+            end
+        end
+        warn("❌ KeySystem file invalid, fallback ke GitHub...")
+    end
+
+    -- Fallback GitHub
+    local success, result = pcall(function()
+        local script = game:HttpGet("https://raw.githubusercontent.com/pickletalk/Scripts-Hub-X/main/keysystem.lua")
+        return loadstring(script)()
+    end)
+
+    if success and type(result) == "table" then
+        print("✅ KeySystem loaded dari GitHub")
+        return true, result
+    else
+        warn("❌ Gagal load KeySystem dari GitHub")
+        return false, nil
+    end
+end
+
+-- ================================
+-- GAME SUPPORT CHECK (FIXED URL)
+-- ================================
+local function checkGameSupport()
+    print("Checking game support for PlaceID:", game.PlaceId)
+    local success, Games = pcall(function()
+        local script = game:HttpGet("https://raw.githubusercontent.com/pickletalk/Scripts-Hub-X/main/GameList.lua")
+        return loadstring(script)()
+    end)
+    if not success then
+        warn("Failed to load game list:", Games)
+        return false, nil
+    end
+
+    if type(Games) ~= "table" then
+        warn("Game list returned invalid data")
+        return false, nil
+    end
+
+    for PlaceID, Execute in pairs(Games) do
+        if PlaceID == game.PlaceId then
+            print("✅ Game supported, script URL:", Execute)
+            return true, Execute
+        end
+    end
+    print("❌ Game not supported")
+    return false, nil
+end
+
+-- ================================
+-- MAIN EXECUTION (TEST START)
+-- ================================
+spawn(function()
+    print("🚀 Starting main execution at", os.date("%H:%M:%S"))
+
+    -- Check game support
+    local isSupported, scriptUrl = checkGameSupport()
+    if not isSupported then
+        warn("Game not supported, stopping...")
+        return
+    end
+
+    -- Try KeySystem
+    if KeySystem then
+        local successKS, KeySystemModule = loadKeySystem()
+        print("KeySystem result:", successKS, KeySystemModule)
+    else
+        print("KeySystem disabled, skipping...")
+    end
+
+    print("✅ Script loaded until main execution")
+end)
