@@ -1,0 +1,112 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local playerName = player.Name
+
+-- Remote baru
+local RFStealPlane = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/StealPlane"]
+
+-- Cari semua base kecuali kita
+local function getTargetBases()
+    local bases = {}
+    local basesFolder = workspace:FindFirstChild("Bases")
+    if not basesFolder then return bases end
+
+    for _, base in ipairs(basesFolder:GetChildren()) do
+        if base.Name ~= playerName then
+            table.insert(bases, base)
+        end
+    end
+    return bases
+end
+
+-- Cari plane dalam base (hanya folder Planes ikut remote baru)
+local function getPlanesFromBase(baseFolder)
+    local planes = {}
+    if not baseFolder then return planes end
+
+    local planesFolder = baseFolder:FindFirstChild("Planes")
+    if planesFolder then
+        for _, plane in ipairs(planesFolder:GetChildren()) do
+            if plane:IsA("Model") or plane:IsA("Part") then
+                table.insert(planes, plane)
+            end
+        end
+    end
+    return planes
+end
+
+-- Steal plane random dari player lain
+local function stealRandomPlane()
+    local targets = getTargetBases()
+    if #targets == 0 then
+        warn("❌ Tiada base lain dijumpai")
+        return
+    end
+
+    local randomBase = targets[math.random(1, #targets)]
+    local planes = getPlanesFromBase(randomBase)
+    if #planes == 0 then
+        warn("❌ Tiada plane dalam base:", randomBase.Name)
+        return
+    end
+
+    local targetPlane = planes[math.random(1, #planes)]
+    print("🎯 Cuba curi", targetPlane.Name, "daripada", randomBase.Name)
+
+    local success, result = pcall(function()
+        return RFStealPlane:InvokeServer(targetPlane) -- remote baru perlukan plane instance
+    end)
+
+    if success then
+        print("✅ Berjaya steal plane", targetPlane.Name)
+    else
+        warn("❌ Gagal steal plane:", result)
+    end
+end
+
+-- ===============================
+-- UI
+-- ===============================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+ScreenGui.Name = "AutoStealUI"
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 160, 0, 50)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.2, 0)
+ToggleButton.Text = "Auto Steal: OFF"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+ToggleButton.TextColor3 = Color3.new(1,1,1)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 20
+ToggleButton.Parent = ScreenGui
+
+local autoSteal = false
+
+local function updateButton()
+    if autoSteal then
+        ToggleButton.Text = "Auto Steal: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+    else
+        ToggleButton.Text = "Auto Steal: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end
+
+ToggleButton.MouseButton1Click:Connect(function()
+    autoSteal = not autoSteal
+    updateButton()
+
+    if autoSteal then
+        task.spawn(function()
+            while autoSteal do
+                stealRandomPlane()
+                task.wait(2)
+            end
+        end)
+    end
+end)
+
+updateButton()
