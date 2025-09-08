@@ -149,7 +149,7 @@ new("TextLabel",{
     TextXAlignment=Enum.TextXAlignment.Left,
 },header)
 
--- Close & Minimize
+-- Close & Minimize (added from Coding 2)
 local closeBtn = new("TextButton",{
     Text="X",Size=UDim2.new(0,32,0,32),Position=UDim2.new(1,-36,0,6),
     BackgroundColor3=Color3.fromRGB(200,50,60),
@@ -169,7 +169,7 @@ local CookieBtn = Instance.new("ImageButton")
 CookieBtn.Size = UDim2.new(0, 36, 0, 36)
 CookieBtn.Position = UDim2.new(0, 20, 0.5, -18)
 CookieBtn.BackgroundTransparency = 1
-CookieBtn.Image = "rbxassetid://116538605820317" -- 🍪 cookie image
+CookieBtn.Image = "rbxassetid://116538605820317" -- cookie image
 CookieBtn.Visible = false
 CookieBtn.Parent = screenGui
 
@@ -187,7 +187,7 @@ closeBtn.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- Tabs (Main / Credit) + underline
+-- Tabs (Main / Credit) + underline (Coding 1 style)
 --==================================================
 local tabFrame = new("Frame",{
     Size = UDim2.new(1,0,0,32),
@@ -251,7 +251,7 @@ new("TextLabel",{
 },creditContainer)
 
 new("ImageLabel",{
-    Image="rbxassetid://80076712708225", -- 💬 Discord logo
+    Image="rbxassetid://80076712708225", -- logo/discord icon
     Size=UDim2.new(0,40,0,40),
     Position=UDim2.new(0,10,0,40),
     BackgroundTransparency=1
