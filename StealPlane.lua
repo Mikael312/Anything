@@ -271,7 +271,7 @@ new("TextLabel",{
 },creditContainer)
 
 new("ImageLabel",{
-    Image="rbxassetid://80076712708225", -- discord icon/logo (ikut ID yang diberi)
+    Image="rbxassetid://113520323335055", -- discord icon/logo (ikut ID yang diberi)
     Size=UDim2.new(0,40,0,40),
     Position=UDim2.new(0,10,0,40),
     BackgroundTransparency=1
