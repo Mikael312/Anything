@@ -76,7 +76,7 @@ local SEA_DATA = {
         ENEMIES = {
             -- Starter Island
             {name = "Bandit", level = {5, 7}, location = CFrame.new(1145, 17, 1634), questGiver = "Bandit Quest"},
-            {name = "Monkey", level = {14, 16}, location = CFrame.new(-1448, 50, 11), questGiver = "Jungle Quest"},
+            {name = "Monkey", level = {14, 16}, location = CFrame.new(-1448, 50, 11), questGiver = "Monkey Quest"},
             
             -- Marine Base
             {name = "Trainees", level = {8, 10}, location = CFrame.new(-2624, 6, -2447), questGiver = "Marine Quest"},
@@ -141,7 +141,8 @@ local ScriptHub = {
     isRunning = false,
     currentTarget = nil,
     currentQuest = nil,
-    originalWalkSpeed = 16
+    originalWalkSpeed = 16,
+    UI = {}
 }
 
 -- Auto-update character reference
@@ -150,9 +151,7 @@ local function updateCharacter()
     if character then
         humanoid = character:WaitForChild("Humanoid")
         rootPart = character:WaitForChild("HumanoidRootPart")
-        if humanoid then
-            ScriptHub.originalWalkSpeed = humanoid.WalkSpeed
-        end
+        ScriptHub.originalWalkSpeed = humanoid.WalkSpeed
     end
 end
 player.CharacterAdded:Connect(updateCharacter)
@@ -186,28 +185,13 @@ end
 
 local function getPlayerLevel()
     local success, level = safeCall(function()
-        if player:FindFirstChild("Data") and player.Data:FindFirstChild("Level") then
-            return player.Data.Level.Value
-        end
-        return 1
+        return player.Data.Level.Value
     end)
     return success and level or 1
 end
 
 local function getPlayerHealth()
-    if humanoid and humanoid.Health and humanoid.MaxHealth then
-        return (humanoid.Health / humanoid.MaxHealth) * 100
-    end
-    return 0
-end
-
--- Fixed fireproximityprompt function
-local function fireProximityPrompt(prompt)
-    if prompt and prompt.ClassName == "ProximityPrompt" then
-        prompt:InputHoldBegin()
-        wait(0.5)
-        prompt:InputHoldEnd()
-    end
+    return humanoid and (humanoid.Health / humanoid.MaxHealth) * 100 or 0
 end
 
 -- ===============================================
@@ -215,14 +199,12 @@ end
 -- ===============================================
 local Combat = {}
 function Combat.findNearestEnemy(maxDistance)
-    if not rootPart then return nil end
-    
     maxDistance = maxDistance or 50
     local nearestEnemy = nil
     local shortestDistance = maxDistance
     
     for _, enemy in pairs(Workspace.Enemies:GetChildren()) do
-        if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy:FindFirstChild("HumanoidRootPart") then
+        if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 then
             local distance = (rootPart.Position - enemy.HumanoidRootPart.Position).Magnitude
             if distance < shortestDistance then
                 shortestDistance = distance
@@ -235,11 +217,11 @@ function Combat.findNearestEnemy(maxDistance)
 end
 
 function Combat.attackEnemy(enemy)
-    if not enemy or not enemy.Parent or not rootPart then
+    if not enemy or not enemy.Parent or not enemy:FindFirstChild("Humanoid") then
         return false
     end
     
-    if not enemy:FindFirstChild("Humanoid") or enemy.Humanoid.Health <= 0 then
+    if enemy.Humanoid.Health <= 0 then
         return false
     end
     
@@ -269,12 +251,12 @@ function Combat.useSkills()
         safeCall(function()
             game:GetService("VirtualUser"):TypeOnKeyboard(skill)
         end)
-        wait(CONFIG.COMBAT.SKILL_DELAY)
+        wait(0.2)
     end
 end
 
 function Combat.farmEnemies()
-    if not CONFIG.COMBAT.AUTO_FARM_ENABLED or not rootPart then return end
+    if not CONFIG.COMBAT.AUTO_FARM_ENABLED then return end
     
     local enemy = Combat.findNearestEnemy()
     if enemy then
@@ -301,8 +283,6 @@ function Quest.findAppropriateQuest()
 end
 
 function Quest.getQuest(questGiver)
-    if not rootPart then return false end
-    
     local questGiverPos = SEA_DATA[CONFIG.SEA_LEVEL].QUEST_GIVERS[questGiver]
     if not questGiverPos then return false end
     
@@ -317,14 +297,14 @@ function Quest.getQuest(questGiver)
             [2] = questGiver,
             [3] = 1
         }
-        ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
+        game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer(unpack(args))
     end)
     
     return true
 end
 
 function Quest.autoQuest()
-    if not CONFIG.COMBAT.AUTO_QUEST_ENABLED or not rootPart then return end
+    if not CONFIG.COMBAT.AUTO_QUEST_ENABLED then return end
     
     local questData = Quest.findAppropriateQuest()
     if questData then
@@ -349,7 +329,6 @@ function ESP.createESP(obj, color, text)
     if ESP.objects[obj] then return end
     
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP_" .. obj.Name
     billboard.Parent = obj
     billboard.Size = UDim2.new(0, 100, 0, 50)
     billboard.Adornee = obj
@@ -370,13 +349,6 @@ function ESP.createESP(obj, color, text)
     label.TextColor3 = Color3.new(1, 1, 1)
     
     ESP.objects[obj] = billboard
-    
-    -- Clean up ESP when object is removed
-    obj.AncestryChanged:Connect(function(_, newParent)
-        if not newParent then
-            ESP.removeESP(obj)
-        end
-    end)
 end
 
 function ESP.removeESP(obj)
@@ -391,17 +363,12 @@ function ESP.updatePlayerESP()
     
     for _, otherPlayer in pairs(Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
-            local char = otherPlayer.Character
-            if char:FindFirstChild("HumanoidRootPart") then
-                local level = "Unknown"
-                if otherPlayer:FindFirstChild("Data") and otherPlayer.Data:FindFirstChild("Level") then
-                    level = tostring(otherPlayer.Data.Level.Value)
-                end
-                
+            local character = otherPlayer.Character
+            if character:FindFirstChild("HumanoidRootPart") then
                 ESP.createESP(
-                    char.HumanoidRootPart,
+                    character.HumanoidRootPart,
                     Color3.new(1, 0, 0),
-                    otherPlayer.Name .. "\nLvl: " .. level
+                    otherPlayer.Name .. "\nLvl: " .. (otherPlayer.Data.Level.Value or "?")
                 )
             end
         end
@@ -427,18 +394,18 @@ end
 -- ===============================================
 local Auto = {}
 function Auto.collectChests()
-    if not CONFIG.AUTO.COLLECT_CHESTS or not rootPart then return end
+    if not CONFIG.AUTO.COLLECT_CHESTS then return end
     
     for _, chest in pairs(Workspace:GetChildren()) do
-        if (chest.Name == "Chest1" or chest.Name == "Chest2" or chest.Name == "Chest3") and chest:FindFirstChild("Base") then
-            local distance = (rootPart.Position - chest.Base.Position).Magnitude
-            if distance < 50 then
-                rootPart.CFrame = chest.Base.CFrame
-                wait(0.5)
-                
-                -- Collect chest
-                if chest.Base:FindFirstChild("ProximityPrompt") then
-                    fireProximityPrompt(chest.Base.ProximityPrompt)
+        if chest.Name == "Chest1" or chest.Name == "Chest2" or chest.Name == "Chest3" then
+            if chest:FindFirstChild("Base") then
+                local distance = (rootPart.Position - chest.Base.Position).Magnitude
+                if distance < 50 then
+                    rootPart.CFrame = chest.Base.CFrame
+                    wait(0.5)
+                    
+                    -- Collect chest
+                    fireproximityprompt(chest.Base.ProximityPrompt)
                 end
             end
         end
@@ -446,7 +413,7 @@ function Auto.collectChests()
 end
 
 function Auto.collectFruits()
-    if not (CONFIG.AUTO.EAT_FRUITS or CONFIG.AUTO.STORE_FRUITS) or not rootPart then return end
+    if not CONFIG.AUTO.EAT_FRUITS and not CONFIG.AUTO.STORE_FRUITS then return end
     
     for _, fruit in pairs(Workspace:GetChildren()) do
         if fruit.Name:find("Fruit") and fruit:FindFirstChild("Handle") then
@@ -455,14 +422,12 @@ function Auto.collectFruits()
                 rootPart.CFrame = fruit.Handle.CFrame
                 wait(0.5)
                 
-                if fruit.Handle:FindFirstChild("ProximityPrompt") then
-                    if CONFIG.AUTO.EAT_FRUITS then
-                        -- Eat fruit
-                        fireProximityPrompt(fruit.Handle.ProximityPrompt)
-                    elseif CONFIG.AUTO.STORE_FRUITS then
-                        -- Store fruit logic here
-                        print("Storing fruit:", fruit.Name)
-                    end
+                if CONFIG.AUTO.EAT_FRUITS then
+                    -- Eat fruit
+                    fireproximityprompt(fruit.Handle.ProximityPrompt)
+                elseif CONFIG.AUTO.STORE_FRUITS then
+                    -- Store fruit logic here
+                    print("Storing fruit:", fruit.Name)
                 end
             end
         end
@@ -493,14 +458,8 @@ end
 function Movement.fly(enabled)
     CONFIG.MOVEMENT.FLY_ENABLED = enabled
     
-    if enabled and rootPart then
-        -- Remove existing body velocity if any
-        if rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity:Destroy()
-        end
-        
+    if enabled then
         local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Name = "FlyVelocity"
         bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
         bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         bodyVelocity.Parent = rootPart
@@ -519,8 +478,8 @@ function Movement.fly(enabled)
             end
         end)
     else
-        if rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity:Destroy()
+        if rootPart:FindFirstChild("BodyVelocity") then
+            rootPart.BodyVelocity:Destroy()
         end
         
         if ScriptHub.connections.fly then
@@ -535,11 +494,9 @@ function Movement.noclip(enabled)
     
     if enabled then
         ScriptHub.connections.noclip = RunService.Stepped:Connect(function()
-            if character then
-                for _, part in pairs(character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
                 end
             end
         end)
@@ -548,11 +505,9 @@ function Movement.noclip(enabled)
             ScriptHub.connections.noclip:Disconnect()
         end
         
-        if character then
-            for _, part in pairs(character:GetDescendants()) do
-                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                    part.CanCollide = true
-                end
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.CanCollide = true
             end
         end
     end
@@ -563,8 +518,6 @@ end
 -- ===============================================
 local Teleport = {}
 function Teleport.toIsland(islandName)
-    if not rootPart then return false end
-    
     local currentSeaData = SEA_DATA[CONFIG.SEA_LEVEL]
     local islandCFrame = currentSeaData.ISLANDS[islandName]
     
@@ -579,8 +532,6 @@ function Teleport.toIsland(islandName)
 end
 
 function Teleport.toBoss(bossName)
-    if not rootPart then return false end
-    
     local currentSeaData = SEA_DATA[CONFIG.SEA_LEVEL]
     
     for _, boss in pairs(currentSeaData.BOSSES) do
@@ -623,7 +574,7 @@ local function mainLoop()
             ESP.updateFruitESP()
         end)
         
-        wait(0.2) -- Main loop delay (slightly increased for performance)
+        wait(0.1) -- Main loop delay
     end
 end
 
@@ -656,14 +607,6 @@ local function stopScript()
     end
     ScriptHub.connections = {}
     
-    -- Clean up ESP objects
-    for obj, esp in pairs(ESP.objects) do
-        if esp then
-            esp:Destroy()
-        end
-    end
-    ESP.objects = {}
-    
     -- Restore original settings
     Movement.setWalkSpeed(ScriptHub.originalWalkSpeed)
     Movement.fly(false)
@@ -679,7 +622,7 @@ local function createUI()
     -- Main UI Container
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "ScriptHubX"
-    ScreenGui.Parent = player:WaitForChild("PlayerGui")
+    ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
     ScreenGui.ResetOnSpawn = false
     ScreenGui.IgnoreGuiInset = true
     
@@ -687,94 +630,161 @@ local function createUI()
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Parent = ScreenGui
-    MainFrame.Size = UDim2.new(0, 350, 0, 500)
-    MainFrame.Position = UDim2.new(0.5, -175, 0.5, -250)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    MainFrame.Size = UDim2.new(0, 650, 0, 450)
+    MainFrame.Position = UDim2.new(0.5, -325, 0.5, -225)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     MainFrame.BorderSizePixel = 0
     MainFrame.Active = true
     MainFrame.Draggable = true
+    MainFrame.Visible = false
+    
+    -- Shadow effect
+    local Shadow = Instance.new("Frame")
+    Shadow.Name = "Shadow"
+    Shadow.Parent = MainFrame
+    Shadow.Size = UDim2.new(1, 10, 1, 10)
+    Shadow.Position = UDim2.new(0, 5, 0, 5)
+    Shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Shadow.BorderSizePixel = 0
+    Shadow.BackgroundTransparency = 0.4
+    Shadow.ZIndex = -1
     
     -- Top Bar
     local TopBar = Instance.new("Frame")
     TopBar.Name = "TopBar"
     TopBar.Parent = MainFrame
-    TopBar.Size = UDim2.new(1, 0, 0, 40)
-    TopBar.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    TopBar.Size = UDim2.new(1, 0, 0, 35)
+    TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
     TopBar.BorderSizePixel = 0
     
     -- Title
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
     Title.Parent = TopBar
-    Title.Size = UDim2.new(1, -100, 1, 0)
-    Title.Position = UDim2.new(0, 10, 0, 0)
+    Title.Size = UDim2.new(1, -120, 1, 0)
+    Title.Position = UDim2.new(0, 15, 0, 0)
     Title.BackgroundTransparency = 1
     Title.Text = "Script Hub X"
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.TextSize = 20
     Title.Font = Enum.Font.GothamBold
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Buttons Container
+    local ButtonsContainer = Instance.new("Frame")
+    ButtonsContainer.Name = "ButtonsContainer"
+    ButtonsContainer.Parent = TopBar
+    ButtonsContainer.Size = UDim2.new(0, 110, 1, 0)
+    ButtonsContainer.Position = UDim2.new(1, -110, 0, 0)
+    ButtonsContainer.BackgroundTransparency = 1
+    
+    -- Minimize Button
+    local MinimizeBtn = Instance.new("TextButton")
+    MinimizeBtn.Name = "MinimizeBtn"
+    MinimizeBtn.Parent = ButtonsContainer
+    MinimizeBtn.Size = UDim2.new(0, 35, 1, 0)
+    MinimizeBtn.Position = UDim2.new(0, 0, 0, 0)
+    MinimizeBtn.BackgroundTransparency = 1
+    MinimizeBtn.Text = "—"
+    MinimizeBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    MinimizeBtn.TextSize = 20
+    MinimizeBtn.Font = Enum.Font.GothamBold
+    
+    -- Maximize Button
+    local MaximizeBtn = Instance.new("TextButton")
+    MaximizeBtn.Name = "MaximizeBtn"
+    MaximizeBtn.Parent = ButtonsContainer
+    MaximizeBtn.Size = UDim2.new(0, 35, 1, 0)
+    MaximizeBtn.Position = UDim2.new(0, 35, 0, 0)
+    MaximizeBtn.BackgroundTransparency = 1
+    MaximizeBtn.Text = "□"
+    MaximizeBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    MaximizeBtn.TextSize = 16
+    MaximizeBtn.Font = Enum.Font.GothamBold
     
     -- Close Button
     local CloseBtn = Instance.new("TextButton")
     CloseBtn.Name = "CloseBtn"
-    CloseBtn.Parent = TopBar
-    CloseBtn.Size = UDim2.new(0, 40, 0, 30)
-    CloseBtn.Position = UDim2.new(1, -45, 0, 5)
-    CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
-    CloseBtn.BorderSizePixel = 0
-    CloseBtn.Text = "X"
-    CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CloseBtn.TextSize = 18
+    CloseBtn.Parent = ButtonsContainer
+    CloseBtn.Size = UDim2.new(0, 35, 1, 0)
+    CloseBtn.Position = UDim2.new(0, 70, 0, 0)
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Text = "×"
+    CloseBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    CloseBtn.TextSize = 22
     CloseBtn.Font = Enum.Font.GothamBold
     
     -- Tab Container
     local TabContainer = Instance.new("Frame")
     TabContainer.Name = "TabContainer"
     TabContainer.Parent = MainFrame
-    TabContainer.Size = UDim2.new(1, 0, 0, 40)
-    TabContainer.Position = UDim2.new(0, 0, 0, 40)
-    TabContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    TabContainer.Size = UDim2.new(0, 170, 1, -35)
+    TabContainer.Position = UDim2.new(0, 0, 0, 35)
+    TabContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     TabContainer.BorderSizePixel = 0
     
     -- Content Container
     local ContentContainer = Instance.new("Frame")
     ContentContainer.Name = "ContentContainer"
     ContentContainer.Parent = MainFrame
-    ContentContainer.Size = UDim2.new(1, 0, 1, -80)
-    ContentContainer.Position = UDim2.new(0, 0, 0, 80)
-    ContentContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    ContentContainer.Size = UDim2.new(1, -170, 1, -35)
+    ContentContainer.Position = UDim2.new(0, 170, 0, 35)
+    ContentContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     ContentContainer.BorderSizePixel = 0
     
     -- Create tabs
-    local tabs = {"Combat", "Navigation", "ESP", "Movement", "Auto", "Controls", "Data", "Credits"}
+    local tabs = {
+        {name = "General", icon = "🏠"},
+        {name = "Combat", icon = "⚔️"},
+        {name = "Navigation", icon = "🗺️"},
+        {name = "ESP", icon = "🔍"},
+        {name = "Movement", icon = "🚀"},
+        {name = "Auto", icon = "💰"},
+        {name = "Controls", icon = "⌨️"},
+        {name = "Sea 1 Data", icon = "📊"},
+        {name = "Credits", icon = "👤"}
+    }
+    
     local tabButtons = {}
     local tabContents = {}
     
-    for i, tabName in ipairs(tabs) do
+    for i, tab in ipairs(tabs) do
         -- Tab Button
         local TabButton = Instance.new("TextButton")
-        TabButton.Name = tabName .. "Tab"
+        TabButton.Name = tab.name .. "Tab"
         TabButton.Parent = TabContainer
-        TabButton.Size = UDim2.new(1 / #tabs, 0, 1, 0)
-        TabButton.Position = UDim2.new((i-1) / #tabs, 0, 0, 0)
-        TabButton.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        TabButton.Size = UDim2.new(1, 0, 0, 45)
+        TabButton.Position = UDim2.new(0, 0, 0, (i-1) * 45)
+        TabButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
         TabButton.BorderSizePixel = 0
-        TabButton.Text = tabName
-        TabButton.TextColor3 = Color3.fromRGB(200, 200, 205)
-        TabButton.TextSize = 14
+        TabButton.Text = "  " .. tab.icon .. "  " .. tab.name
+        TabButton.TextColor3 = Color3.fromRGB(180, 180, 185)
+        TabButton.TextSize = 16
         TabButton.Font = Enum.Font.Gotham
+        TabButton.TextXAlignment = Enum.TextXAlignment.Left
+        
+        -- Tab Highlight
+        local TabHighlight = Instance.new("Frame")
+        TabHighlight.Name = "Highlight"
+        TabHighlight.Parent = TabButton
+        TabHighlight.Size = UDim2.new(0, 4, 1, 0)
+        TabHighlight.Position = UDim2.new(0, 0, 0, 0)
+        TabHighlight.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
+        TabHighlight.BorderSizePixel = 0
+        TabHighlight.Visible = (i == 1)
         
         -- Tab Content
         local TabContent = Instance.new("ScrollingFrame")
-        TabContent.Name = tabName .. "Content"
+        TabContent.Name = tab.name .. "Content"
         TabContent.Parent = ContentContainer
         TabContent.Size = UDim2.new(1, 0, 1, 0)
         TabContent.Position = UDim2.new(0, 0, 0, 0)
-        TabContent.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        TabContent.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
         TabContent.BorderSizePixel = 0
         TabContent.Visible = (i == 1)
-        TabContent.ScrollBarThickness = 5
+        TabContent.ScrollBarThickness = 8
         TabContent.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 65)
+        TabContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
         
         table.insert(tabButtons, TabButton)
         table.insert(tabContents, TabContent)
@@ -785,35 +795,53 @@ local function createUI()
                 content.Visible = (j == i)
             end
             for j, button in ipairs(tabButtons) do
+                local highlight = button:FindFirstChild("Highlight")
                 if j == i then
-                    button.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-                    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-                else
                     button.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-                    button.TextColor3 = Color3.fromRGB(200, 200, 205)
+                    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    if highlight then highlight.Visible = true end
+                else
+                    button.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+                    button.TextColor3 = Color3.fromRGB(180, 180, 185)
+                    if highlight then highlight.Visible = false end
                 end
+            end
+        end)
+        
+        -- Tab Button Hover Effect
+        TabButton.MouseEnter:Connect(function()
+            if not TabButton.Highlight.Visible then
+                TabButton.BackgroundColor3 = Color3.fromRGB(33, 33, 38)
+            end
+        end)
+        
+        TabButton.MouseLeave:Connect(function()
+            if not TabButton.Highlight.Visible then
+                TabButton.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
             end
         end)
     end
     
-    -- Create toggle function
-    local function createToggle(name, parent, configTable, configKey)
+    -- Create toggle function with config integration
+    local function createToggle(name, parent, position, configTable, configKey)
         local ToggleFrame = Instance.new("Frame")
         ToggleFrame.Name = name .. "Toggle"
         ToggleFrame.Parent = parent
-        ToggleFrame.Size = UDim2.new(1, -20, 0, 40)
-        ToggleFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        ToggleFrame.Size = UDim2.new(1, -20, 0, 35)
+        ToggleFrame.Position = position
+        ToggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
         ToggleFrame.BorderSizePixel = 0
+        ToggleFrame.AutomaticSize = Enum.AutomaticSize.Y
         
         local ToggleLabel = Instance.new("TextLabel")
         ToggleLabel.Name = "Label"
         ToggleLabel.Parent = ToggleFrame
         ToggleLabel.Size = UDim2.new(1, -70, 1, 0)
-        ToggleLabel.Position = UDim2.new(0, 10, 0, 0)
+        ToggleLabel.Position = UDim2.new(0, 15, 0, 0)
         ToggleLabel.BackgroundTransparency = 1
         ToggleLabel.Text = name
         ToggleLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
-        ToggleLabel.TextSize = 14
+        ToggleLabel.TextSize = 15
         ToggleLabel.Font = Enum.Font.Gotham
         ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
         ToggleLabel.TextWrapped = true
@@ -821,8 +849,8 @@ local function createUI()
         local ToggleButton = Instance.new("TextButton")
         ToggleButton.Name = "Button"
         ToggleButton.Parent = ToggleFrame
-        ToggleButton.Size = UDim2.new(0, 50, 0, 25)
-        ToggleButton.Position = UDim2.new(1, -60, 0.5, -12.5)
+        ToggleButton.Size = UDim2.new(0, 55, 0, 25)
+        ToggleButton.Position = UDim2.new(1, -70, 0.5, -12.5)
         ToggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
         ToggleButton.BorderSizePixel = 0
         ToggleButton.Text = ""
@@ -832,20 +860,21 @@ local function createUI()
         local ToggleIndicator = Instance.new("Frame")
         ToggleIndicator.Name = "Indicator"
         ToggleIndicator.Parent = ToggleButton
-        ToggleIndicator.Size = UDim2.new(0, 20, 0, 20)
-        ToggleIndicator.Position = UDim2.new(0, 3, 0, 2.5)
+        ToggleIndicator.Size = UDim2.new(0, 21, 0, 21)
+        ToggleIndicator.Position = UDim2.new(0, 2, 0, 2)
         ToggleIndicator.BackgroundColor3 = Color3.fromRGB(220, 220, 225)
         ToggleIndicator.BorderSizePixel = 0
+        ToggleIndicator.CornerRadius = UDim.new(0.5, 0)
         
         ToggleButton.CornerRadius = UDim.new(0, 4)
         ToggleFrame.CornerRadius = UDim.new(0, 4)
         
-        -- Set initial state
+        -- Set initial state based on config
         local enabled = configTable and configKey and configTable[configKey] or false
         
         if enabled then
             ToggleButton.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
-            ToggleIndicator.Position = UDim2.new(0, 27, 0, 2.5)
+            ToggleIndicator.Position = UDim2.new(0, 32, 0, 2)
         end
         
         ToggleButton.MouseButton1Click:Connect(function()
@@ -856,198 +885,371 @@ local function createUI()
             
             if enabled then
                 TweenService:Create(ToggleButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(65, 130, 220)}):Play()
-                TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 27, 0, 2.5)}):Play()
+                TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 32, 0, 2)}):Play()
             else
                 TweenService:Create(ToggleButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 85)}):Play()
-                TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 3, 0, 2.5)}):Play()
+                TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0, 2)}):Play()
             end
         end)
         
-        return ToggleFrame
+        return ToggleFrame, ToggleButton, enabled
     end
     
-    -- Create button function
-    local function createButton(name, parent, callback)
-        local Button = Instance.new("TextButton")
-        Button.Name = name .. "Button"
-        Button.Parent = parent
-        Button.Size = UDim2.new(1, -20, 0, 35)
-        Button.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-        Button.BorderSizePixel = 0
-        Button.Text = name
-        Button.TextColor3 = Color3.fromRGB(220, 220, 225)
-        Button.TextSize = 14
-        Button.Font = Enum.Font.Gotham
-        Button.CornerRadius = UDim.new(0, 4)
+    -- Create section function
+    local function createSection(title, parent, position)
+        local SectionFrame = Instance.new("Frame")
+        SectionFrame.Name = title .. "Section"
+        SectionFrame.Parent = parent
+        SectionFrame.Size = UDim2.new(1, -20, 0, 30)
+        SectionFrame.Position = position
+        SectionFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        SectionFrame.BorderSizePixel = 0
         
-        Button.MouseButton1Click:Connect(callback)
+        local SectionTitle = Instance.new("TextLabel")
+        SectionTitle.Name = "Title"
+        SectionTitle.Parent = SectionFrame
+        SectionTitle.Size = UDim2.new(1, -10, 1, 0)
+        SectionTitle.Position = UDim2.new(0, 10, 0, 0)
+        SectionTitle.BackgroundTransparency = 1
+        SectionTitle.Text = title
+        SectionTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SectionTitle.TextSize = 18
+        SectionTitle.Font = Enum.Font.GothamBold
+        SectionTitle.TextXAlignment = Enum.TextXAlignment.Left
         
-        Button.MouseEnter:Connect(function()
-            TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 60, 65)}):Play()
+        SectionFrame.CornerRadius = UDim.new(0, 4)
+        
+        return SectionFrame, UDim2.new(0, 10, 0, position.Y.Offset + 35)
+    end
+    
+    -- Create General tab content
+    local GeneralContent = tabContents[1]
+    local nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("General Settings", GeneralContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    -- Start/Stop All Toggle
+    local startStopToggle = createToggle("Start All Automation", GeneralContent, nextPos)
+    startStopToggle.MouseButton1Click:Connect(function()
+        if ScriptHub.isRunning then
+            stopScript()
+        else
+            startScript()
+        end
+    end)
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Auto Update", GeneralContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Notifications", GeneralContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Anti-Detection", GeneralContent, nextPos)
+    
+    -- Create Combat tab content
+    local CombatContent = tabContents[2]
+    nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("⚔️ Combat System", CombatContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    createToggle("Auto farm enemies based on level", CombatContent, nextPos, CONFIG.COMBAT, "AUTO_FARM_ENABLED")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Auto quest system", CombatContent, nextPos, CONFIG.COMBAT, "AUTO_QUEST_ENABLED")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Smart enemy targeting", CombatContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Skill rotation (Z, X, C, V)", CombatContent, nextPos, CONFIG.COMBAT, "USE_SKILLS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Safety stop when health is low", CombatContent, nextPos)
+    
+    -- Create Navigation tab content
+    local NavigationContent = tabContents[3]
+    nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("🗺️ Navigation", NavigationContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    -- Create island teleport buttons
+    local currentSeaData = SEA_DATA[CONFIG.SEA_LEVEL]
+    for islandName, islandCFrame in pairs(currentSeaData.ISLANDS) do
+        local IslandButton = Instance.new("TextButton")
+        IslandButton.Name = islandName .. "Button"
+        IslandButton.Parent = NavigationContent
+        IslandButton.Size = UDim2.new(1, -20, 0, 35)
+        IslandButton.Position = nextPos
+        IslandButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+        IslandButton.BorderSizePixel = 0
+        IslandButton.Text = "Teleport to " .. islandName
+        IslandButton.TextColor3 = Color3.fromRGB(220, 220, 225)
+        IslandButton.TextSize = 15
+        IslandButton.Font = Enum.Font.Gotham
+        IslandButton.CornerRadius = UDim.new(0, 4)
+        
+        IslandButton.MouseButton1Click:Connect(function()
+            Teleport.toIsland(islandName)
         end)
         
-        Button.MouseLeave:Connect(function()
-            TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 55)}):Play()
+        IslandButton.MouseEnter:Connect(function()
+            TweenService:Create(IslandButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 60)}):Play()
         end)
         
-        return Button
-    end
-    
-    -- Create label function
-    local function createLabel(text, parent)
-        local Label = Instance.new("TextLabel")
-        Label.Name = "Label"
-        Label.Parent = parent
-        Label.Size = UDim2.new(1, -20, 0, 20)
-        Label.BackgroundTransparency = 1
-        Label.Text = text
-        Label.TextColor3 = Color3.fromRGB(200, 200, 205)
-        Label.TextSize = 14
-        Label.Font = Enum.Font.Gotham
-        Label.TextXAlignment = Enum.TextXAlignment.Left
-        Label.TextWrapped = true
+        IslandButton.MouseLeave:Connect(function()
+            TweenService:Create(IslandButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 50)}):Play()
+        end)
         
-        return Label
+        nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
     end
     
-    -- Populate Combat tab
-    local CombatContent = tabContents[1]
-    createToggle("Auto Farm Enemies", CombatContent, CONFIG.COMBAT, "AUTO_FARM_ENABLED")
-    createToggle("Auto Quest System", CombatContent, CONFIG.COMBAT, "AUTO_QUEST_ENABLED")
-    createToggle("Smart Enemy Targeting", CombatContent)
-    createToggle("Skill Rotation (Z, X, C, V)", CombatContent, CONFIG.COMBAT, "USE_SKILLS")
-    createToggle("Safety Stop (Low Health)", CombatContent)
+    -- Create ESP tab content
+    local ESPContent = tabContents[4]
+    nextPos = UDim2.new(0, 10, 0, 10)
     
-    -- Populate Navigation tab
-    local NavigationContent = tabContents[2]
-    createButton("Teleport to Starter Island", NavigationContent, function()
-        Teleport.toIsland("Starter Island")
-    end)
-    createButton("Teleport to Marine Base", NavigationContent, function()
-        Teleport.toIsland("Marine Base")
-    end)
-    createButton("Teleport to Jungle", NavigationContent, function()
-        Teleport.toIsland("Jungle")
-    end)
-    createButton("Teleport to Desert", NavigationContent, function()
-        Teleport.toIsland("Desert")
-    end)
-    createButton("Teleport to Frozen Village", NavigationContent, function()
-        Teleport.toIsland("Frozen Village")
-    end)
-    createButton("Teleport to Skylands", NavigationContent, function()
-        Teleport.toIsland("Skylands")
-    end)
+    createSection("🔍 ESP System", ESPContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
     
-    -- Populate ESP tab
-    local ESPContent = tabContents[3]
-    createToggle("Player ESP (Name + Level)", ESPContent, CONFIG.ESP, "PLAYERS")
-    createToggle("Fruit ESP with Highlighting", ESPContent, CONFIG.ESP, "FRUITS")
-    createToggle("Enemy ESP", ESPContent, CONFIG.ESP, "NPCS")
-    createToggle("Chest ESP", ESPContent, CONFIG.ESP, "CHESTS")
-    createToggle("Quest Giver ESP", ESPContent, CONFIG.ESP, "QUESTS")
+    createToggle("Player ESP (name + level)", ESPContent, nextPos, CONFIG.ESP, "PLAYERS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
     
-    -- Populate Movement tab
-    local MovementContent = tabContents[4]
-    createToggle("Fly Mode (Space/Shift)", MovementContent, CONFIG.MOVEMENT, "FLY_ENABLED")
-    createToggle("Noclip Mode", MovementContent, CONFIG.MOVEMENT, "NOCLIP_ENABLED")
+    createToggle("Fruit ESP with highlighting", ESPContent, nextPos, CONFIG.ESP, "FRUITS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
     
+    createToggle("Enemy ESP", ESPContent, nextPos, CONFIG.ESP, "NPCS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Quest giver ESP", ESPContent, nextPos, CONFIG.ESP, "QUESTS")
+    
+    -- Create Movement tab content
+    local MovementContent = tabContents[5]
+    nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("🚀 Movement Features", MovementContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    -- Walk Speed Slider
     local WalkSpeedFrame = Instance.new("Frame")
     WalkSpeedFrame.Name = "WalkSpeedFrame"
     WalkSpeedFrame.Parent = MovementContent
-    WalkSpeedFrame.Size = UDim2.new(1, -20, 0, 50)
-    WalkSpeedFrame.Position = UDim2.new(0, 10, 0, 150)
-    WalkSpeedFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    WalkSpeedFrame.Size = UDim2.new(1, -20, 0, 60)
+    WalkSpeedFrame.Position = nextPos
+    WalkSpeedFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
     WalkSpeedFrame.BorderSizePixel = 0
     
     local WalkSpeedLabel = Instance.new("TextLabel")
     WalkSpeedLabel.Name = "Label"
     WalkSpeedLabel.Parent = WalkSpeedFrame
-    WalkSpeedLabel.Size = UDim2.new(1, -20, 0, 20)
+    WalkSpeedLabel.Size = UDim2.new(1, -20, 0, 25)
     WalkSpeedLabel.Position = UDim2.new(0, 10, 0, 5)
     WalkSpeedLabel.BackgroundTransparency = 1
     WalkSpeedLabel.Text = "Walk Speed: " .. CONFIG.MOVEMENT.WALK_SPEED
     WalkSpeedLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
-    WalkSpeedLabel.TextSize = 14
+    WalkSpeedLabel.TextSize = 15
     WalkSpeedLabel.Font = Enum.Font.Gotham
+    WalkSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
     
-    local WalkSpeedInput = Instance.new("TextBox")
-    WalkSpeedInput.Name = "Input"
-    WalkSpeedInput.Parent = WalkSpeedFrame
-    WalkSpeedInput.Size = UDim2.new(1, -20, 0, 25)
-    WalkSpeedInput.Position = UDim2.new(0, 10, 0, 25)
-    WalkSpeedInput.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-    WalkSpeedInput.BorderSizePixel = 0
-    WalkSpeedInput.Text = tostring(CONFIG.MOVEMENT.WALK_SPEED)
-    WalkSpeedInput.TextColor3 = Color3.fromRGB(220, 220, 225)
-    WalkSpeedInput.TextSize = 14
-    WalkSpeedInput.Font = Enum.Font.Gotham
+    local WalkSpeedSlider = Instance.new("TextBox")
+    WalkSpeedSlider.Name = "Slider"
+    WalkSpeedSlider.Parent = WalkSpeedFrame
+    WalkSpeedSlider.Size = UDim2.new(1, -20, 0, 25)
+    WalkSpeedSlider.Position = UDim2.new(0, 10, 0, 30)
+    WalkSpeedSlider.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    WalkSpeedSlider.BorderSizePixel = 0
+    WalkSpeedSlider.Text = tostring(CONFIG.MOVEMENT.WALK_SPEED)
+    WalkSpeedLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+    WalkSpeedSlider.TextSize = 15
+    WalkSpeedSlider.Font = Enum.Font.Gotham
+    WalkSpeedSlider.CornerRadius = UDim.new(0, 4)
     
-    WalkSpeedInput.FocusLost:Connect(function()
-        local newSpeed = tonumber(WalkSpeedInput.Text)
-        if newSpeed and newSpeed > 0 then
+    WalkSpeedSlider.FocusLost:Connect(function()
+        local newSpeed = tonumber(WalkSpeedSlider.Text)
+        if newSpeed and newSpeed > 0 and newSpeed <= 500 then
             CONFIG.MOVEMENT.WALK_SPEED = newSpeed
+            Movement.setWalkSpeed(newSpeed)
             WalkSpeedLabel.Text = "Walk Speed: " .. newSpeed
-            if humanoid then
-                humanoid.WalkSpeed = newSpeed
-            end
         else
-            WalkSpeedInput.Text = tostring(CONFIG.MOVEMENT.WALK_SPEED)
+            WalkSpeedSlider.Text = tostring(CONFIG.MOVEMENT.WALK_SPEED)
         end
     end)
     
     WalkSpeedFrame.CornerRadius = UDim.new(0, 4)
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 70)
     
-    -- Populate Auto tab
-    local AutoContent = tabContents[5]
-    createToggle("Auto Collect Chests", AutoContent, CONFIG.AUTO, "COLLECT_CHESTS")
-    createToggle("Auto Eat Fruits", AutoContent, CONFIG.AUTO, "EAT_FRUITS")
-    createToggle("Auto Store Fruits", AutoContent, CONFIG.AUTO, "STORE_FRUITS")
-    createToggle("Auto Rejoin When Kicked", AutoContent, CONFIG.AUTO, "REJOIN")
+    createToggle("Fly mode (Space/Shift controls)", MovementContent, nextPos, CONFIG.MOVEMENT, "FLY_ENABLED")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
     
-    -- Populate Controls tab
-    local ControlsContent = tabContents[6]
-    createLabel("F1 - Start/Stop All Automation", ControlsContent)
-    createLabel("F2 - Toggle Auto Farm", ControlsContent)
-    createLabel("F3 - Toggle ESP", ControlsContent)
-    createLabel("F4 - Toggle Fly Mode", ControlsContent)
+    createToggle("Noclip mode", MovementContent, nextPos, CONFIG.MOVEMENT, "NOCLIP_ENABLED")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
     
-    -- Populate Data tab
-    local DataContent = tabContents[7]
-    createLabel("✅ All 12 islands with coordinates", DataContent)
-    createLabel("✅ All enemies with level ranges", DataContent)
-    createLabel("✅ All bosses with locations", DataContent)
-    createLabel("✅ Quest giver locations", DataContent)
-    createLabel("✅ Complete fruit list", DataContent)
+    createToggle("Smart teleportation", MovementContent, nextPos)
     
-    -- Populate Credits tab
-    local CreditsContent = tabContents[8]
+    -- Create Auto tab content
+    local AutoContent = tabContents[6]
+    nextPos = UDim2.new(0, 10, 0, 10)
     
+    createSection("💰 Auto Features", AutoContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    createToggle("Auto collect chests", AutoContent, nextPos, CONFIG.AUTO, "COLLECT_CHESTS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Auto eat fruits", AutoContent, nextPos, CONFIG.AUTO, "EAT_FRUITS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Auto store fruits", AutoContent, nextPos, CONFIG.AUTO, "STORE_FRUITS")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Auto rejoin when kicked", AutoContent, nextPos, CONFIG.AUTO, "REJOIN")
+    nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 40)
+    
+    createToggle("Auto stat point distribution", AutoContent, nextPos, CONFIG.COMBAT, "AUTO_STATS")
+    
+    -- Create Controls tab content
+    local ControlsContent = tabContents[7]
+    nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("⌨️ Easy Controls", ControlsContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    -- Create Controls info
+    local ControlsInfo = {
+        {key = "F1", desc = "Start/Stop all automation"},
+        {key = "F2", desc = "Toggle auto farm"},
+        {key = "F3", desc = "Toggle ESP"},
+        {key = "F4", desc = "Toggle fly mode"}
+    }
+    
+    for i, info in ipairs(ControlsInfo) do
+        local ControlFrame = Instance.new("Frame")
+        ControlFrame.Name = "Control" .. i
+        ControlFrame.Parent = ControlsContent
+        ControlFrame.Size = UDim2.new(1, -20, 0, 40)
+        ControlFrame.Position = nextPos
+        ControlFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        ControlFrame.BorderSizePixel = 0
+        
+        local KeyLabel = Instance.new("TextLabel")
+        KeyLabel.Name = "Key"
+        KeyLabel.Parent = ControlFrame
+        KeyLabel.Size = UDim2.new(0, 60, 1, 0)
+        KeyLabel.Position = UDim2.new(0, 15, 0, 0)
+        KeyLabel.BackgroundTransparency = 1
+        KeyLabel.Text = info.key
+        KeyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        KeyLabel.TextSize = 18
+        KeyLabel.Font = Enum.Font.GothamBold
+        KeyLabel.TextXAlignment = Enum.TextXAlignment.Center
+        
+        local DescLabel = Instance.new("TextLabel")
+        DescLabel.Name = "Description"
+        DescLabel.Parent = ControlFrame
+        DescLabel.Size = UDim2.new(1, -90, 1, 0)
+        DescLabel.Position = UDim2.new(0, 85, 0, 0)
+        DescLabel.BackgroundTransparency = 1
+        DescLabel.Text = info.desc
+        DescLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+        DescLabel.TextSize = 15
+        DescLabel.Font = Enum.Font.Gotham
+        DescLabel.TextXAlignment = Enum.TextXAlignment.Left
+        
+        ControlFrame.CornerRadius = UDim.new(0, 4)
+        
+        nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 45)
+    end
+    
+    -- Create Sea 1 Data tab content
+    local Sea1DataContent = tabContents[8]
+    nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("📊 Sea 1 Complete Data", Sea1DataContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    -- Create Sea 1 Data sections
+    local Sea1Sections = {
+        {title = "Islands", data = "All 12 islands with coordinates"},
+        {title = "Enemies", data = "All enemies with level ranges"},
+        {title = "Bosses", data = "All bosses with locations"},
+        {title = "Quest Givers", data = "Quest giver locations"},
+        {title = "Fruits", data = "Complete fruit list"}
+    }
+    
+    for i, section in ipairs(Sea1Sections) do
+        local SectionFrame = Instance.new("Frame")
+        SectionFrame.Name = "Section" .. i
+        SectionFrame.Parent = Sea1DataContent
+        SectionFrame.Size = UDim2.new(1, -20, 0, 70)
+        SectionFrame.Position = nextPos
+        SectionFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        SectionFrame.BorderSizePixel = 0
+        
+        local SectionTitle = Instance.new("TextLabel")
+        SectionTitle.Name = "Title"
+        SectionTitle.Parent = SectionFrame
+        SectionTitle.Size = UDim2.new(1, -20, 0, 30)
+        SectionTitle.Position = UDim2.new(0, 10, 0, 5)
+        SectionTitle.BackgroundTransparency = 1
+        SectionTitle.Text = section.title
+        SectionTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        SectionTitle.TextSize = 17
+        SectionTitle.Font = Enum.Font.GothamBold
+        SectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+        
+        local SectionData = Instance.new("TextLabel")
+        SectionData.Name = "Data"
+        SectionData.Parent = SectionFrame
+        SectionData.Size = UDim2.new(1, -20, 0, 30)
+        SectionData.Position = UDim2.new(0, 10, 0, 35)
+        SectionData.BackgroundTransparency = 1
+        SectionData.Text = "✅ " .. section.data
+        SectionData.TextColor3 = Color3.fromRGB(100, 255, 100)
+        SectionData.TextSize = 15
+        SectionData.Font = Enum.Font.Gotham
+        SectionData.TextXAlignment = Enum.TextXAlignment.Left
+        SectionData.TextWrapped = true
+        
+        SectionFrame.CornerRadius = UDim.new(0, 4)
+        
+        nextPos = UDim2.new(0, 10, 0, nextPos.Y.Offset + 75)
+    end
+    
+    -- Create Credits tab content
+    local CreditsContent = tabContents[9]
+    nextPos = UDim2.new(0, 10, 0, 10)
+    
+    createSection("👤 Credits", CreditsContent, nextPos)
+    nextPos = UDim2.new(0, 10, 0, 50)
+    
+    -- Discord Section
     local DiscordFrame = Instance.new("Frame")
     DiscordFrame.Name = "DiscordFrame"
     DiscordFrame.Parent = CreditsContent
-    DiscordFrame.Size = UDim2.new(1, -20, 0, 150)
-    DiscordFrame.Position = UDim2.new(0, 10, 0, 10)
-    DiscordFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    DiscordFrame.Size = UDim2.new(1, -20, 0, 180)
+    DiscordFrame.Position = nextPos
+    DiscordFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
     DiscordFrame.BorderSizePixel = 0
     
     local DiscordImage = Instance.new("ImageLabel")
     DiscordImage.Name = "DiscordImage"
     DiscordImage.Parent = DiscordFrame
-    DiscordImage.Size = UDim2.new(0, 80, 0, 80)
-    DiscordImage.Position = UDim2.new(0.5, -40, 0, 10)
+    DiscordImage.Size = UDim2.new(0, 100, 0, 100)
+    DiscordImage.Position = UDim2.new(0.5, -50, 0, 15)
     DiscordImage.BackgroundTransparency = 1
     DiscordImage.Image = "rbxassetid://113520323335055"
     
     local DiscordText = Instance.new("TextLabel")
     DiscordText.Name = "DiscordText"
     DiscordText.Parent = DiscordFrame
-    DiscordText.Size = UDim2.new(1, -20, 0, 30)
-    DiscordText.Position = UDim2.new(0, 10, 0, 100)
+    DiscordText.Size = UDim2.new(1, -20, 0, 25)
+    DiscordText.Position = UDim2.new(0, 10, 0, 125)
     DiscordText.BackgroundTransparency = 1
-    DiscordText.Text = "Join our Discord community!"
+    DiscordText.Text = "Join our Discord community for updates and support!"
     DiscordText.TextColor3 = Color3.fromRGB(220, 220, 225)
-    DiscordText.TextSize = 14
+    DiscordText.TextSize = 15
     DiscordText.Font = Enum.Font.Gotham
     DiscordText.TextXAlignment = Enum.TextXAlignment.Center
     DiscordText.TextWrapped = true
@@ -1055,13 +1257,13 @@ local function createUI()
     local JoinDiscordBtn = Instance.new("TextButton")
     JoinDiscordBtn.Name = "JoinDiscordBtn"
     JoinDiscordBtn.Parent = DiscordFrame
-    JoinDiscordBtn.Size = UDim2.new(0, 150, 0, 30)
-    JoinDiscordBtn.Position = UDim2.new(0.5, -75, 0, 115)
+    JoinDiscordBtn.Size = UDim2.new(0, 170, 0, 35)
+    JoinDiscordBtn.Position = UDim2.new(0.5, -85, 0, 140)
     JoinDiscordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     JoinDiscordBtn.BorderSizePixel = 0
     JoinDiscordBtn.Text = "Join Discord"
     JoinDiscordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    JoinDiscordBtn.TextSize = 14
+    JoinDiscordBtn.TextSize = 16
     JoinDiscordBtn.Font = Enum.Font.GothamBold
     JoinDiscordBtn.CornerRadius = UDim.new(0, 4)
     
@@ -1069,19 +1271,28 @@ local function createUI()
         game:GetService("GuiService"):OpenBrowserWindow("https://discord.gg/kkVnwtfn")
     end)
     
+    JoinDiscordBtn.MouseEnter:Connect(function()
+        TweenService:Create(JoinDiscordBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(102, 126, 234)}):Play()
+    end)
+    
+    JoinDiscordBtn.MouseLeave:Connect(function()
+        TweenService:Create(JoinDiscordBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(88, 101, 242)}):Play()
+    end)
+    
+    DiscordFrame.CornerRadius = UDim.new(0, 4)
+    
+    -- Creator Text
     local CreatorText = Instance.new("TextLabel")
     CreatorText.Name = "CreatorText"
     CreatorText.Parent = CreditsContent
-    CreatorText.Size = UDim2.new(1, -20, 0, 20)
-    CreatorText.Position = UDim2.new(0, 10, 0, 170)
+    CreatorText.Size = UDim2.new(1, -20, 0, 25)
+    CreatorText.Position = UDim2.new(0, 10, 0, nextPos.Y.Offset + 190)
     CreatorText.BackgroundTransparency = 1
     CreatorText.Text = "Made By Michel"
     CreatorText.TextColor3 = Color3.fromRGB(180, 180, 185)
     CreatorText.TextSize = 14
     CreatorText.Font = Enum.Font.GothamItalic
     CreatorText.TextXAlignment = Enum.TextXAlignment.Center
-    
-    DiscordFrame.CornerRadius = UDim.new(0, 4)
     
     -- Open Hub Button
     local OpenHubBtn = Instance.new("ImageButton")
@@ -1092,206 +1303,88 @@ local function createUI()
     OpenHubBtn.BackgroundTransparency = 1
     OpenHubBtn.Image = "rbxassetid://73162230845258"
     OpenHubBtn.Visible = true
-    
-    -- Mobile Fly Controls
-    local FlyUpBtn = Instance.new("TextButton")
-    FlyUpBtn.Name = "FlyUpBtn"
-    FlyUpBtn.Parent = ScreenGui
-    FlyUpBtn.Size = UDim2.new(0, 60, 0, 60)
-    FlyUpBtn.Position = UDim2.new(0, 100, 0.5, -100)
-    FlyUpBtn.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
-    FlyUpBtn.BorderSizePixel = 0
-    FlyUpBtn.Text = "↑"
-    FlyUpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    FlyUpBtn.TextSize = 30
-    FlyUpBtn.Font = Enum.Font.GothamBold
-    FlyUpBtn.Visible = false
-    FlyUpBtn.CornerRadius = UDim.new(0, 10)
-    
-    local FlyDownBtn = Instance.new("TextButton")
-    FlyDownBtn.Name = "FlyDownBtn"
-    FlyDownBtn.Parent = ScreenGui
-    FlyDownBtn.Size = UDim2.new(0, 60, 0, 60)
-    FlyDownBtn.Position = UDim2.new(0, 100, 0.5, 40)
-    FlyDownBtn.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
-    FlyDownBtn.BorderSizePixel = 0
-    FlyDownBtn.Text = "↓"
-    FlyDownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    FlyDownBtn.TextSize = 30
-    FlyDownBtn.Font = Enum.Font.GothamBold
-    FlyDownBtn.Visible = false
-    FlyDownBtn.CornerRadius = UDim.new(0, 10)
+    OpenHubBtn.ZIndex = 10
     
     -- Button functionality
+    local minimized = false
+    local maximized = false
+    local originalSize = MainFrame.Size
+    local originalPosition = MainFrame.Position
+    
+    -- Minimize Button
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        if minimized then
+            TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, 250, 0, 35)}):Play()
+            ContentContainer.Visible = false
+            TabContainer.Visible = false
+            OpenHubBtn.Visible = true
+        else
+            TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = originalSize}):Play()
+            ContentContainer.Visible = true
+            TabContainer.Visible = true
+            OpenHubBtn.Visible = false
+        end
+    end)
+    
+    -- Maximize Button
+    MaximizeBtn.MouseButton1Click:Connect(function()
+        maximized = not maximized
+        if maximized then
+            TweenService:Create(MainFrame, TweenInfo.new(0.3), {
+                Size = UDim2.new(1, -40, 1, -40),
+                Position = UDim2.new(0, 20, 0, 20)
+            }):Play()
+        else
+            TweenService:Create(MainFrame, TweenInfo.new(0.3), {
+                Size = originalSize,
+                Position = originalPosition
+            }):Play()
+        end
+    end)
+    
+    -- Close Button
     CloseBtn.MouseButton1Click:Connect(function()
         MainFrame.Visible = false
         OpenHubBtn.Visible = true
     end)
     
+    -- Open Hub Button
     OpenHubBtn.MouseButton1Click:Connect(function()
         MainFrame.Visible = true
         OpenHubBtn.Visible = false
-    end)
-    
-    -- Fly controls
-    FlyUpBtn.TouchBegan:Connect(function()
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, 50, 0)
+        if minimized then
+            minimized = false
+            TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = originalSize}):Play()
+            ContentContainer.Visible = true
+            TabContainer.Visible = true
         end
     end)
     
-    FlyDownBtn.TouchBegan:Connect(function()
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, -50, 0)
-        end
-    end)
-    
-    FlyUpBtn.TouchEnded:Connect(function()
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    FlyDownBtn.TouchEnded:Connect(function()
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    -- Update fly controls visibility
-    game:GetService("RunService").Heartbeat:Connect(function()
-        FlyUpBtn.Visible = CONFIG.MOVEMENT.FLY_ENABLED
-        FlyDownBtn.Visible = CONFIG.MOVEMENT.FLY_ENABLED
-    end)
-    
-    -- Notification
-    local function notify(text)
-        local Notification = Instance.new("Frame")
-        Notification.Name = "Notification"
-        Notification.Parent = ScreenGui
-        Notification.Size = UDim2.new(0, 300, 0, 80)
-        Notification.Position = UDim2.new(0.5, -150, 0, -100)
-        Notification.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-        Notification.BorderSizePixel = 0
-        Notification.CornerRadius = UDim.new(0, 8)
+    -- Grow animation when opening
+    local function openAnimation()
+        MainFrame.Visible = true
+        MainFrame.Size = UDim2.new(0, 0, 0, 0)
+        MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
         
-        local NotificationText = Instance.new("TextLabel")
-        NotificationText.Name = "Text"
-        NotificationText.Parent = Notification
-        NotificationText.Size = UDim2.new(1, -20, 1, -20)
-        NotificationText.Position = UDim2.new(0, 10, 0, 10)
-        NotificationText.BackgroundTransparency = 1
-        NotificationText.Text = text
-        NotificationText.TextColor3 = Color3.fromRGB(255, 255, 255)
-        NotificationText.TextSize = 16
-        NotificationText.Font = Enum.Font.Gotham
-        NotificationText.TextXAlignment = Enum.TextXAlignment.Center
-        NotificationText.TextYAlignment = Enum.TextYAlignment.Center
-        NotificationText.TextWrapped = true
-        
-        -- Animate notification
-        Notification:TweenPosition(UDim2.new(0.5, -150, 0, 20), "Out", "Back", 0.5)
-        
-        -- Remove after 3 seconds
-        game:GetService("Debris"):AddItem(Notification, 3)
-        
-        -- Animate out
-        spawn(function()
-            wait(2.5)
-            Notification:TweenPosition(UDim2.new(0.5, -150, 0, -100), "In", "Back", 0.5)
-        end)
+        local tween = TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+            Size = originalSize,
+            Position = originalPosition
+        })
+        tween:Play()
     end
     
-    notify("Script Hub X Loaded Successfully!")
+    -- Initial animation
+    openAnimation()
+    
+    -- Store UI references
+    ScriptHub.UI = {
+        ScreenGui = ScreenGui,
+        MainFrame = MainFrame,
+        OpenHubBtn = OpenHubBtn
+    }
     
     return ScreenGui
-end
-
--- ===============================================
--- MOBILE TOUCH CONTROLS
--- ===============================================
-local function setupMobileControls()
-    -- Create mobile fly controls
-    local flyUpButton = Instance.new("TextButton")
-    flyUpButton.Name = "FlyUpButton"
-    flyUpButton.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    flyUpButton.Size = UDim2.new(0, 60, 0, 60)
-    flyUpButton.Position = UDim2.new(0, 100, 0.5, -100)
-    flyUpButton.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
-    flyUpButton.BorderSizePixel = 0
-    flyUpButton.Text = "↑"
-    flyUpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    flyUpButton.TextSize = 30
-    flyUpButton.Font = Enum.Font.GothamBold
-    flyUpButton.Visible = false
-    flyUpButton.CornerRadius = UDim.new(0, 10)
-    flyUpButton.ZIndex = 10
-    
-    local flyDownButton = Instance.new("TextButton")
-    flyDownButton.Name = "FlyDownButton"
-    flyDownButton.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    flyDownButton.Size = UDim2.new(0, 60, 0, 60)
-    flyDownButton.Position = UDim2.new(0, 100, 0.5, 40)
-    flyDownButton.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
-    flyDownButton.BorderSizePixel = 0
-    flyDownButton.Text = "↓"
-    flyDownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    flyDownButton.TextSize = 30
-    flyDownButton.Font = Enum.Font.GothamBold
-    flyDownButton.Visible = false
-    flyDownButton.CornerRadius = UDim.new(0, 10)
-    flyDownButton.ZIndex = 10
-    
-    -- Show/hide mobile fly controls based on fly mode
-    local function updateMobileFlyControls()
-        flyUpButton.Visible = CONFIG.MOVEMENT.FLY_ENABLED
-        flyDownButton.Visible = CONFIG.MOVEMENT.FLY_ENABLED
-    end
-    
-    -- Connect to config changes
-    local conn
-    conn = game:GetService("RunService").Heartbeat:Connect(function()
-        updateMobileFlyControls()
-    end)
-    
-    -- Mobile fly controls functionality
-    local flyingUp = false
-    local flyingDown = false
-    
-    flyUpButton.TouchBegan:Connect(function()
-        flyingUp = true
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, 50, 0)
-        end
-    end)
-    
-    flyUpButton.TouchEnded:Connect(function()
-        flyingUp = false
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") and not flyingDown then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    flyDownButton.TouchBegan:Connect(function()
-        flyingDown = true
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, -50, 0)
-        end
-    end)
-    
-    flyDownButton.TouchEnded:Connect(function()
-        flyingDown = false
-        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("FlyVelocity") and not flyingUp then
-            rootPart.FlyVelocity.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-    
-    -- Store mobile controls
-    ScriptHub.UI = {
-        FlyUpButton = flyUpButton,
-        FlyDownButton = flyDownButton,
-        Connection = conn
-    }
 end
 
 -- ===============================================
@@ -1318,6 +1411,91 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         print("🚀 Fly:", CONFIG.MOVEMENT.FLY_ENABLED and "ON" or "OFF")
     end
 end)
+
+-- ===============================================
+-- MOBILE TOUCH CONTROLS
+-- ===============================================
+local function setupMobileControls()
+    -- Create mobile fly controls
+    local flyUpButton = Instance.new("TextButton")
+    flyUpButton.Name = "FlyUpButton"
+    flyUpButton.Parent = ScriptHub.UI.ScreenGui
+    flyUpButton.Size = UDim2.new(0, 60, 0, 60)
+    flyUpButton.Position = UDim2.new(0, 100, 0.5, -100)
+    flyUpButton.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
+    flyUpButton.BorderSizePixel = 0
+    flyUpButton.Text = "↑"
+    flyUpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    flyUpButton.TextSize = 30
+    flyUpButton.Font = Enum.Font.GothamBold
+    flyUpButton.Visible = false
+    flyUpButton.CornerRadius = UDim.new(0, 10)
+    
+    local flyDownButton = Instance.new("TextButton")
+    flyDownButton.Name = "FlyDownButton"
+    flyDownButton.Parent = ScriptHub.UI.ScreenGui
+    flyDownButton.Size = UDim2.new(0, 60, 0, 60)
+    flyDownButton.Position = UDim2.new(0, 100, 0.5, 40)
+    flyDownButton.BackgroundColor3 = Color3.fromRGB(65, 130, 220)
+    flyDownButton.BorderSizePixel = 0
+    flyDownButton.Text = "↓"
+    flyDownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    flyDownButton.TextSize = 30
+    flyDownButton.Font = Enum.Font.GothamBold
+    flyDownButton.Visible = false
+    flyDownButton.CornerRadius = UDim.new(0, 10)
+    
+    -- Show/hide mobile fly controls based on fly mode
+    local function updateMobileFlyControls()
+        flyUpButton.Visible = CONFIG.MOVEMENT.FLY_ENABLED
+        flyDownButton.Visible = CONFIG.MOVEMENT.FLY_ENABLED
+    end
+    
+    -- Connect to config changes
+    local conn
+    conn = game:GetService("RunService").Heartbeat:Connect(function()
+        updateMobileFlyControls()
+    end)
+    
+    -- Mobile fly controls functionality
+    local flyingUp = false
+    local flyingDown = false
+    
+    flyUpButton.TouchBegan:Connect(function()
+        flyingUp = true
+        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("BodyVelocity") then
+            rootPart.BodyVelocity.Velocity = Vector3.new(0, 50, 0)
+        end
+    end)
+    
+    flyUpButton.TouchEnded:Connect(function()
+        flyingUp = false
+        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("BodyVelocity") and not flyingDown then
+            rootPart.BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    
+    flyDownButton.TouchBegan:Connect(function()
+        flyingDown = true
+        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("BodyVelocity") then
+            rootPart.BodyVelocity.Velocity = Vector3.new(0, -50, 0)
+        end
+    end)
+    
+    flyDownButton.TouchEnded:Connect(function()
+        flyingDown = false
+        if CONFIG.MOVEMENT.FLY_ENABLED and rootPart and rootPart:FindFirstChild("BodyVelocity") and not flyingUp then
+            rootPart.BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    
+    -- Store mobile controls
+    ScriptHub.UI.MobileControls = {
+        FlyUpButton = flyUpButton,
+        FlyDownButton = flyDownButton,
+        Connection = conn
+    }
+end
 
 -- ===============================================
 -- INITIALIZATION
