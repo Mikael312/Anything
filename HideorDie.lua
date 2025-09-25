@@ -764,7 +764,7 @@ local function autoWalk()
     end
 end
 
-createToggle("Auto Walk (MVP)", function(v)
+createToggle("Auto Walk", function(v)
     autoWalkEnabled = v
 end)
 
