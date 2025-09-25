@@ -149,7 +149,7 @@ new("TextLabel",{
 },header)
 
 new("TextLabel",{
-    Text="Script Hub X",
+    Text="Script hub X by michel",
     Font=Enum.Font.Gotham,TextSize=13,
     TextColor3=Color3.fromRGB(180,180,185),
     BackgroundTransparency=1,
@@ -517,55 +517,6 @@ createToggle("Auto Aim", function(v)
     autoAimEnabled = v
 end)
 
--- Auto Attack
-local autoAttackEnabled=false
-local function autoAttack()
-    if not autoAttackEnabled then return end
-    
-    local hiders = getAliveHiders()
-    if #hiders == 0 then return end
-    
-    -- Find nearest hider
-    local nearestHider = nil
-    local minDistance = math.huge
-    
-    for _, hider in pairs(hiders) do
-        if hider.Character and hider.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (rootPart.Position - hider.Character.HumanoidRootPart.Position).Magnitude
-            if distance < minDistance then
-                minDistance = distance
-                nearestHider = hider
-            end
-        end
-    end
-    
-    if nearestHider and nearestHider.Character and nearestHider.Character:FindFirstChild("Humanoid") then
-        -- Check if we're close enough to attack
-        if minDistance < 10 then
-            -- Try to find the attack tool
-            local tool = character:FindFirstChildOfClass("Tool")
-            if tool then
-                -- Try to find a remote in the tool
-                for _, obj in pairs(tool:GetDescendants()) do
-                    if obj:IsA("RemoteEvent") then
-                        -- Fire the remote rapidly to achieve 1-hit
-                        for i = 1, 10 do
-                            pcall(function()
-                                obj:FireServer(nearestHider.Character)
-                            end)
-                        end
-                        break
-                    end
-                end
-            end
-        end
-    end
-end
-
-createToggle("Auto Attack", function(v)
-    autoAttackEnabled = v
-end)
-
 -- ESP Hider
 local espHiderEnabled=false
 local espObjects = {}
@@ -813,7 +764,7 @@ local function autoWalk()
     end
 end
 
-createToggle("Auto Walk", function(v)
+createToggle("Auto Walk (MVP)", function(v)
     autoWalkEnabled = v
 end)
 
@@ -850,7 +801,6 @@ RunService.Heartbeat:Connect(function()
     if playerRole == "Seeker" then  
         autoCatch()  
         autoAim()  
-        autoAttack()  
     elseif playerRole == "Hider" then  
         autoDodge()  
         autoWalk()  
