@@ -149,7 +149,7 @@ new("TextLabel",{
 },header)
 
 new("TextLabel",{
-    Text="Script hub X by michel",
+    Text="Script Hub X",
     Font=Enum.Font.Gotham,TextSize=13,
     TextColor3=Color3.fromRGB(180,180,185),
     BackgroundTransparency=1,
@@ -385,7 +385,7 @@ end
 --==================================================
 
 -- Server Hop Section
-createSectionHeader("Server Hop")
+createSectionHeader("Server")
 
 -- Server Hop Button
 createButton("Server Hop", function()
