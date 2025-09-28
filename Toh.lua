@@ -7,8 +7,8 @@ screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 -- Create draggable frame with background
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 200, 0, 100)
-mainFrame.Position = UDim2.new(0.5, -100, 0.5, -50)
+mainFrame.Size = UDim2.new(0, 250, 0, 100)  -- Increased width to accommodate Discord button
+mainFrame.Position = UDim2.new(0.5, -125, 0.5, -50)  -- Adjusted position for new width
 mainFrame.BackgroundColor3 = Color3.fromRGB(68, 68, 68)  -- #444444
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
@@ -23,7 +23,7 @@ frameCorner.Parent = mainFrame
 -- Create title label
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "Title"
-titleLabel.Size = UDim2.new(0, 200, 0, 30)
+titleLabel.Size = UDim2.new(0, 250, 0, 30)  -- Adjusted width
 titleLabel.Position = UDim2.new(0, 0, 0, 5)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "Tower of Hell"
@@ -35,10 +35,10 @@ titleLabel.Parent = mainFrame
 -- Create subtitle label
 local subtitleLabel = Instance.new("TextLabel")
 subtitleLabel.Name = "Subtitle"
-subtitleLabel.Size = UDim2.new(0, 200, 0, 20)
+subtitleLabel.Size = UDim2.new(0, 250, 0, 20)  -- Adjusted width
 subtitleLabel.Position = UDim2.new(0, 0, 0, 35)
 subtitleLabel.BackgroundTransparency = 1
-subtitleLabel.Text = "Script Hub X"
+titleLabel.Text = "Script Hub X"  -- Fixed: Changed subtitleLabel to titleLabel
 subtitleLabel.TextColor3 = Color3.fromRGB(136, 136, 136)  -- #888888
 subtitleLabel.Font = Enum.Font.SourceSans
 subtitleLabel.TextSize = 14
@@ -62,17 +62,45 @@ local toggleCorner = Instance.new("UICorner")
 toggleCorner.CornerRadius = UDim.new(0, 15)
 toggleCorner.Parent = toggleButton
 
+-- Create Discord button
+local discordButton = Instance.new("ImageButton")
+discordButton.Name = "Discord"
+discordButton.Size = UDim2.new(0, 30, 0, 30)
+discordButton.Position = UDim2.new(0, 145, 0, 60)
+discordButton.BackgroundTransparency = 1
+discordButton.Image = "rbxassetid://113520323335055"
+discordButton.Parent = mainFrame
+
 -- Create close button (X)
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "Close"
 closeButton.Size = UDim2.new(0, 25, 0, 25)
-closeButton.Position = UDim2.new(0, 165, 0, 5)
+closeButton.Position = UDim2.new(0, 215, 0, 5)  -- Adjusted position for new width
 closeButton.BackgroundTransparency = 1
 closeButton.Text = "X"
 closeButton.TextColor3 = Color3.fromRGB(136, 136, 136)  -- #888888
 closeButton.Font = Enum.Font.SourceSansBold
 closeButton.TextSize = 18
 closeButton.Parent = mainFrame
+
+-- Create notification label (initially hidden)
+local notificationLabel = Instance.new("TextLabel")
+notificationLabel.Name = "Notification"
+notificationLabel.Size = UDim2.new(0, 200, 0, 30)
+notificationLabel.Position = UDim2.new(0.5, -100, 0.5, 50)
+notificationLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+notificationLabel.BorderSizePixel = 0
+notificationLabel.Text = "Discord link copied to clipboard!"
+notificationLabel.TextColor3 = Color3.new(1, 1, 1)
+notificationLabel.Font = Enum.Font.SourceSans
+notificationLabel.TextSize = 14
+notificationLabel.Visible = false
+notificationLabel.Parent = screenGui
+
+-- Add rounded corners to notification
+local notificationCorner = Instance.new("UICorner")
+notificationCorner.CornerRadius = UDim.new(0, 8)
+notificationCorner.Parent = notificationLabel
 
 -- Float functionality
 local floatEnabled = false
@@ -123,6 +151,77 @@ local function toggleFloat()
     end
 end
 
+-- Function to copy Discord link to clipboard
+local function copyDiscordLink()
+    local discordLink = "https://discord.gg/M7jvQeVnS"
+    
+    -- Set clipboard content
+    if syn then
+        syn.write_clipboard(discordLink)
+    elseif setclipboard then
+        setclipboard(discordLink)
+    else
+        -- Fallback for executors without clipboard functions
+        local http = game:GetService("HttpService")
+        local gui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+        local clipboardFrame = Instance.new("Frame")
+        clipboardFrame.Size = UDim2.new(0, 300, 0, 200)
+        clipboardFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
+        clipboardFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        clipboardFrame.BorderSizePixel = 0
+        clipboardFrame.Parent = gui
+        
+        local clipboardCorner = Instance.new("UICorner")
+        clipboardCorner.CornerRadius = UDim.new(0, 10)
+        clipboardCorner.Parent = clipboardFrame
+        
+        local clipboardText = Instance.new("TextBox")
+        clipboardText.Size = UDim2.new(0, 280, 0, 50)
+        clipboardText.Position = UDim2.new(0, 10, 0, 75)
+        clipboardText.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        clipboardText.Text = discordLink
+        clipboardText.TextScaled = true
+        clipboardText.Parent = clipboardFrame
+        
+        local textCorner = Instance.new("UICorner")
+        textCorner.CornerRadius = UDim.new(0, 5)
+        textCorner.Parent = clipboardText
+        
+        local instructions = Instance.new("TextLabel")
+        instructions.Size = UDim2.new(0, 280, 0, 50)
+        instructions.Position = UDim2.new(0, 10, 0, 20)
+        instructions.BackgroundTransparency = 1
+        instructions.Text = "Copy this Discord link manually:"
+        instructions.TextColor3 = Color3.new(1, 1, 1)
+        instructions.TextScaled = true
+        instructions.Parent = clipboardFrame
+        
+        local closeButton = Instance.new("TextButton")
+        closeButton.Size = UDim2.new(0, 80, 0, 30)
+        closeButton.Position = UDim2.new(0, 110, 0, 140)
+        closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        closeButton.Text = "Close"
+        closeButton.TextColor3 = Color3.new(1, 1, 1)
+        closeButton.Parent = clipboardFrame
+        
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 5)
+        buttonCorner.Parent = closeButton
+        
+        closeButton.MouseButton1Click:Connect(function()
+            clipboardFrame:Destroy()
+        end)
+        
+        return
+    end
+    
+    -- Show notification
+    notificationLabel.Visible = true
+    
+    -- Hide notification after 3 seconds
+    game:GetService("Debris"):AddItem(notificationLabel, 3)
+end
+
 -- Track player state
 local lastState = humanoid:GetState()
 
@@ -146,6 +245,7 @@ humanoid.StateChanged:Connect(onStateChanged)
 
 -- Button connections
 toggleButton.MouseButton1Click:Connect(toggleFloat)
+discordButton.MouseButton1Click:Connect(copyDiscordLink)
 
 closeButton.MouseButton1Click:Connect(function()
     removePlatform()
