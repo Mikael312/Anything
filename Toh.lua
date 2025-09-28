@@ -51,7 +51,7 @@ toggleButton.Size = UDim2.new(0, 120, 0, 30)
 toggleButton.Position = UDim2.new(0, 15, 0, 60)
 toggleButton.BackgroundColor3 = Color3.fromRGB(190, 190, 190)  -- #BEBEBE
 toggleButton.BorderSizePixel = 0
-toggleButton.Text = "Float: OFF"
+toggleButton.Text = "Infinite Jump: OFF"
 toggleButton.TextColor3 = Color3.new(0, 0, 0)
 toggleButton.Font = Enum.Font.SourceSansBold
 toggleButton.TextSize = 14
@@ -109,7 +109,7 @@ end
 -- Function to toggle float feature
 local function toggleFloat()
     floatEnabled = not floatEnabled
-    toggleButton.Text = floatEnabled and "Float: ON" or "Float: OFF"
+    toggleButton.Text = floatEnabled and "Infinite Jump: ON" or "Infinite Jump: OFF"
     
     -- Change button color when active
     if floatEnabled then
